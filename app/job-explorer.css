@@ -44,8 +44,7 @@
   width: 31px;
   height: 31px;
   place-items: center;
-  border-radius: 5px;
-  background: #385f4e;
+  background: #5da787;
   color: #f5f7e8;
 }
 
@@ -166,7 +165,7 @@
 
 .feed-summary strong {
   color: #405e4c;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: 'JetBrains Mono', 'Roboto Mono', 'Fira Code', monospace;
   font-size: 26px;
   font-weight: 400;
   line-height: 1;
