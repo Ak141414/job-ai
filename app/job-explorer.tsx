@@ -115,7 +115,13 @@ function useAnimatedCount(target: number, duration = 1500): number {
  * Wrapper component to allow animations inside .map() loops.
  * Defaults to `format=true` so markers and the sidebar use identical formatting (commas).
  */
-function AnimatedCountDisplay({ target, format = true }: { target: number; format?: boolean }) {
+function AnimatedCountDisplay({
+  target,
+  format = true,
+}: {
+  target: number;
+  format?: boolean;
+}) {
   const count = useAnimatedCount(target, 1500);
   return <>{format ? count.toLocaleString() : count}</>;
 }
@@ -304,7 +310,9 @@ export default function JobExplorer() {
           hasMoreStages?: boolean;
         };
 
-        const initialJobs = Array.isArray(data.jobs) ? sortJobsNewestFirst(data.jobs) : [];
+        const initialJobs = Array.isArray(data.jobs)
+          ? sortJobsNewestFirst(data.jobs)
+          : [];
         setJobs(initialJobs);
         setNextCursor(data.nextCursor ?? null);
         setLoading(false);
@@ -395,15 +403,16 @@ export default function JobExplorer() {
 
   const filteredJobs = useMemo(() => {
     // For Worldwide, filter to only show truly remote jobs first
-    const jobsToFilter = selectedCountry === "WW"
-      ? arrangementJobs.filter(
-          (job) =>
-            job.workMode === "Remote" ||
-            job.location.toLowerCase().includes("worldwide") ||
-            job.location.toLowerCase().includes("anywhere") ||
-            job.location.toLowerCase().includes("remote")
-        )
-      : arrangementJobs;
+    const jobsToFilter =
+      selectedCountry === "WW"
+        ? arrangementJobs.filter(
+            (job) =>
+              job.workMode === "Remote" ||
+              job.location.toLowerCase().includes("worldwide") ||
+              job.location.toLowerCase().includes("anywhere") ||
+              job.location.toLowerCase().includes("remote"),
+          )
+        : arrangementJobs;
 
     const base = selectedCountry
       ? jobsToFilter.filter((job) => jobMatchesCountry(job, selectedCountry))
@@ -472,15 +481,16 @@ export default function JobExplorer() {
   const markets = useMemo<JobMarketSummary[]>(() => {
     const countMap = new Map<string, number>();
     // arrangementJobs already has work mode filter applied
-    const jobsToCount = selectedCountry === "WW"
-      ? arrangementJobs.filter(
-          (job) =>
-            job.workMode === "Remote" ||
-            job.location.toLowerCase().includes("worldwide") ||
-            job.location.toLowerCase().includes("anywhere") ||
-            job.location.toLowerCase().includes("remote")
-        )
-      : arrangementJobs;
+    const jobsToCount =
+      selectedCountry === "WW"
+        ? arrangementJobs.filter(
+            (job) =>
+              job.workMode === "Remote" ||
+              job.location.toLowerCase().includes("worldwide") ||
+              job.location.toLowerCase().includes("anywhere") ||
+              job.location.toLowerCase().includes("remote"),
+          )
+        : arrangementJobs;
 
     for (const job of jobsToCount) {
       const codes = jobCountries(job);
@@ -552,7 +562,8 @@ export default function JobExplorer() {
 
     // Otherwise select the new country
     // Keep the current region if the country is within it, otherwise switch to World
-    const countryInCurrentRegion = selectedRegion !== "World" &&
+    const countryInCurrentRegion =
+      selectedRegion !== "World" &&
       regionCountryCodes[selectedRegion].includes(code);
 
     if (!countryInCurrentRegion) {
@@ -705,7 +716,8 @@ export default function JobExplorer() {
         return sortJobsNewestFirst([...current, ...newJobs]);
       });
       setNextCursor(data.nextCursor ?? null);
-      if (listingMode === "jobs") setVisibleLimit((current) => current + PAGE_SIZE);
+      if (listingMode === "jobs")
+        setVisibleLimit((current) => current + PAGE_SIZE);
       else setCompanyVisibleLimit((current) => current + PAGE_SIZE);
     } catch (error) {
       setFeedError(
@@ -720,10 +732,10 @@ export default function JobExplorer() {
 
   const isFiltering = Boolean(
     selectedCountry ||
-      selectedRegion !== "World" ||
-      query.trim() ||
-      workModeFilter !== "any" ||
-      roleJobs,
+    selectedRegion !== "World" ||
+    query.trim() ||
+    workModeFilter !== "any" ||
+    roleJobs,
   );
 
   const hasMoreLocalJobs =
@@ -773,7 +785,8 @@ export default function JobExplorer() {
                   marginRight: 6,
                 }}
               />
-              Streaming {filteredJobs.length + Math.floor(Math.random() * 11)} openings…
+              Streaming {filteredJobs.length + Math.floor(Math.random() * 11)}{" "}
+              openings…
             </span>
           )}
           <button
@@ -801,14 +814,14 @@ export default function JobExplorer() {
           </p>
         </div>
         <div className="feed-summary">
-          <strong style={{ fontSize: "2.5rem", fontWeight: 900, lineHeight: 1 }}>
-            {loading ? (
-              "—"
-            ) : listingMode === "jobs" ? (
-              animatedJobCount.toLocaleString()
-            ) : (
-              animatedCompanyCount.toLocaleString()
-            )}
+          <strong
+            style={{ fontSize: "2.5rem", fontWeight: 900, lineHeight: 1 }}
+          >
+            {loading
+              ? "—"
+              : listingMode === "jobs"
+                ? animatedJobCount.toLocaleString()
+                : animatedCompanyCount.toLocaleString()}
           </strong>
           <span style={{ fontSize: "1 rem", fontWeight: 700, lineHeight: 1 }}>
             {listingMode === "companies"
@@ -1161,7 +1174,7 @@ export default function JobExplorer() {
 
           <div className="geo-canvas">
             <EarthGlobe
-              key={`earth-globe-${selectedCountry ?? ""}-${jobs.length > 0 ? "active" : "empty"}`}
+              key="earth-globe"
               markets={visibleMarkets.filter((market) => market.code !== "WW")}
               selectedCountry={selectedCountry}
               highlightedCountries={highlightedCountries}
