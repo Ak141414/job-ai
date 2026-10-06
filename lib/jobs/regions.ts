@@ -1,4 +1,4 @@
-export const regionCountryCodes = {
+export const regionCountryCodes: Record<string, string[]> = {
   Americas: [
     "AG", "AR", "BS", "BB", "BZ", "BO", "BR", "CA", "CL", "CO", "CR", "CU", "DM", "DO", "EC", "SV", "GD", "GT", "GY", "HT", "HN", "JM", "MX", "NI", "PA", "PY", "PE", "KN", "LC", "VC", "SR", "TT", "US", "UY", "VE",
   ],
@@ -14,7 +14,7 @@ export const regionCountryCodes = {
   Oceania: [
     "AU", "NZ", "FJ", "PG", "SB", "VU", "WS", "TO", "TV", "KI", "NR", "PW", "FM", "MH",
   ],
-} as const;
+};
 
 export type RegionName = keyof typeof regionCountryCodes;
 export const regions = Object.keys(regionCountryCodes) as RegionName[];

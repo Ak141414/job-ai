@@ -12,7 +12,7 @@ const topology = worldTopology as unknown as { objects: { land: unknown; countri
 
 type GeoFeatureCollection = {
   type: "FeatureCollection";
-  features: Array<{ geometry: { type: string; coordinates: unknown } }>;
+  features: Array<{ id?: string | number; geometry: { type: string; coordinates: unknown } }>;
 };
 
 function createEarthTexture(highlightedCountries: string[]) {
@@ -182,12 +182,119 @@ export default function EarthGlobe({
   const selectRef = useRef(onSelectCountry);
   const marketRef = useRef(markets);
   const selectedRef = useRef(selectedCountry);
+  const controlsRef = useRef<any>(null);
+  const rootRef = useRef<THREE.Group | null>(null);
   const pinMapRef = useRef<Map<string, { dot: THREE.Mesh; halo: THREE.Mesh; group: THREE.Group }>>(new Map());
   const hoveredRef = useRef<string | null>(null);
 
   useEffect(() => { selectRef.current = onSelectCountry; }, [onSelectCountry]);
   useEffect(() => { marketRef.current = markets; }, [markets]);
   useEffect(() => { selectedRef.current = selectedCountry; }, [selectedCountry]);
+
+  // Stop auto-rotation when a country or region is selected
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+
+    // Stop rotation if country is selected or if regions are highlighted
+    const shouldStopRotation = selectedCountry !== null || highlightedCountries.length > 0;
+    controls.autoRotate = !shouldStopRotation;
+    controls.update();
+  }, [selectedCountry, highlightedCountries]);
+
+  // Rotate globe to show selected country on front
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls || !selectedCountry) return;
+
+    const market = marketRef.current.find((m) => m.code === selectedCountry);
+    if (!market) return;
+
+    const targetLon = market.longitude;
+
+    // Calculate target camera position to face the country
+    const radius = 5.25;
+    const lat = THREE.MathUtils.degToRad(market.latitude);
+    const lon = THREE.MathUtils.degToRad(targetLon);
+
+    const x = radius * Math.cos(lat) * Math.cos(lon);
+    const y = radius * Math.sin(lat);
+    const z = -radius * Math.cos(lat) * Math.sin(lon);
+
+    // Animate the camera position
+    const duration = 1000;
+    const startPos = controls.object.position.clone();
+    const endPos = new THREE.Vector3(x, y, z);
+    const startTime = Date.now();
+
+    function animateCamera() {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3); // Cubic ease-out
+
+      controls.object.position.lerpVectors(startPos, endPos, ease);
+      controls.update();
+
+      if (progress < 1) {
+        requestAnimationFrame(animateCamera);
+      }
+    }
+
+    animateCamera();
+  }, [selectedCountry]);
+
+  // Rotate globe to show selected region on front
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+
+    if (highlightedCountries.length === 0) {
+      // Reset to default position
+      controls.object.position.set(0, 0, 5.25);
+      controls.target.set(0, 0, 0);
+      controls.update();
+      return;
+    }
+
+    // Calculate the center longitude of the region
+    const regionMarkets = marketRef.current.filter((m) =>
+      highlightedCountries.includes(m.code)
+    );
+    if (regionMarkets.length === 0) return;
+
+    const avgLon = regionMarkets.reduce((sum, m) => sum + m.longitude, 0) / regionMarkets.length;
+    const avgLat = regionMarkets.reduce((sum, m) => sum + m.latitude, 0) / regionMarkets.length;
+
+    // Calculate target camera position to face the region center
+    const radius = 5.25;
+    const lat = THREE.MathUtils.degToRad(avgLat);
+    const lon = THREE.MathUtils.degToRad(avgLon);
+
+    const x = radius * Math.cos(lat) * Math.cos(lon);
+    const y = radius * Math.sin(lat);
+    const z = -radius * Math.cos(lat) * Math.sin(lon);
+
+    // Animate the camera position
+    const duration = 1000;
+    const startPos = controls.object.position.clone();
+    const endPos = new THREE.Vector3(x, y, z);
+    const startTime = Date.now();
+
+    function animateCamera() {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3); // Cubic ease-out
+
+      controls.object.position.lerpVectors(startPos, endPos, ease);
+      controls.update();
+
+      if (progress < 1) {
+        requestAnimationFrame(animateCamera);
+      }
+    }
+
+    animateCamera();
+  }, [highlightedCountries]);
 
   // Update visual selection + hover every time selectedCountry changes
   useEffect(() => {
@@ -234,10 +341,12 @@ export default function EarthGlobe({
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.35;
     controls.rotateSpeed = 0.55;
+    controlsRef.current = controls;
 
     const root = new THREE.Group();
     root.rotation.set(-0.08, -Math.PI / 2, 0);
     scene.add(root);
+    rootRef.current = root;
 
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(1.55, 96, 72),

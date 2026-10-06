@@ -18,7 +18,7 @@ export type JobListing = {
   countryCode: string;
   matchScore: number;
   matchedSkills: string[];
-  source?: "Remotive" | "Jobicy" | "Arbeitnow" | "Himalayas" | "RemoteOK";
+  source?: "Remotive" | "Jobicy" | "Arbeitnow" | "ArbeitnowUK" | "Himalayas" | "RemoteOK" | "RemoteJobsOrg" | "RemoteFirstJobs" | "WorkingNomads" | "Greenhouse" | "Lever" | "Ashby" | "SmartRecruiters";
   countryCodes?: string[];
 };
 

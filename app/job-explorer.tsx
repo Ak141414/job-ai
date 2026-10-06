@@ -12,7 +12,6 @@ import {
   Check,
   FileText,
   Globe2,
-  Map as MapIcon,
   MapPin,
   Plus,
   Search,
@@ -20,13 +19,6 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import {
-  ComposableMap,
-  Geographies,
-  Geography,
-  Marker,
-  ZoomableGroup,
-} from "react-simple-maps";
 import { geoCentroid } from "d3-geo";
 import isoCountries from "i18n-iso-countries";
 import { feature } from "topojson-client";
@@ -46,10 +38,6 @@ import {
 
 const PAGE_SIZE = 10;
 const maxResumeBytes = 10 * 1024 * 1024;
-const DEFAULT_MAP_CENTER: [number, number] = [15, 12];
-const DEFAULT_MAP_ZOOM = 1;
-
-type ViewMode = "globe" | "map";
 type ListingMode = "jobs" | "companies";
 type WorkModeFilter = "any" | "Remote" | "Hybrid" | "Office";
 type CompanyEntry = { name: string; jobs: JobListing[] };
@@ -167,88 +155,6 @@ const allCountryMarkets = worldCountryFeatures.features.flatMap((country) => {
   ];
 });
 
-const topologyCountryAliases: Record<string, string> = {
-  algeria: "DZ",
-  angola: "AO",
-  benin: "BJ",
-  botswana: "BW",
-  "burkina faso": "BF",
-  burundi: "BI",
-  "cabo verde": "CV",
-  cameroon: "CM",
-  "central african republic": "CF",
-  chad: "TD",
-  comoros: "KM",
-  "republic of the congo": "CG",
-  "central african rep": "CF",
-  "democratic republic of the congo": "CD",
-  "dem rep congo": "CD",
-  "democratic republic of congo": "CD",
-  congo: "CG",
-  djibouti: "DJ",
-  egypt: "EG",
-  "equatorial guinea": "GQ",
-  "eq guinea": "GQ",
-  eritrea: "ER",
-  eswatini: "SZ",
-  ethiopia: "ET",
-  gabon: "GA",
-  gambia: "GM",
-  "the gambia": "GM",
-  ghana: "GH",
-  guinea: "GN",
-  "guinea-bissau": "GW",
-  "cote d ivoire": "CI",
-  "ivory coast": "CI",
-  kenya: "KE",
-  lesotho: "LS",
-  liberia: "LR",
-  libya: "LY",
-  madagascar: "MG",
-  malawi: "MW",
-  mali: "ML",
-  mauritania: "MR",
-  mauritius: "MU",
-  morocco: "MA",
-  mozambique: "MZ",
-  namibia: "NA",
-  niger: "NE",
-  nigeria: "NG",
-  rwanda: "RW",
-  "sao tome and principe": "ST",
-  senegal: "SN",
-  seychelles: "SC",
-  "sierra leone": "SL",
-  somalia: "SO",
-  "south africa": "ZA",
-  "south sudan": "SS",
-  sudan: "SD",
-  tanzania: "TZ",
-  togo: "TG",
-  tunisia: "TN",
-  uganda: "UG",
-  zambia: "ZM",
-  zimbabwe: "ZW",
-};
-
-function countryCodeForMapName(name: string, id?: string | number) {
-  if (id !== undefined) {
-    const code = isoCountries.numericToAlpha2(String(id).padStart(3, "0"));
-    if (code) return code;
-  }
-  const normalized = name
-    .toLocaleLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-  return (
-    topologyCountryAliases[normalized] ??
-    isoCountries.getAlpha2Code(name, "en") ??
-    null
-  );
-}
-
 function formatPostedDate(value: string) {
   const elapsed = Date.now() - Date.parse(value);
   if (!Number.isFinite(elapsed) || elapsed < 0) return "Date unavailable";
@@ -365,9 +271,6 @@ export default function JobExplorer() {
   );
   const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
   const [companyVisibleLimit, setCompanyVisibleLimit] = useState(PAGE_SIZE);
-  const [view, setView] = useState<ViewMode>("globe");
-  const [mapZoom, setMapZoom] = useState(DEFAULT_MAP_ZOOM);
-  const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_MAP_CENTER);
   const [listingMode, setListingMode] = useState<ListingMode>("jobs");
   const [query, setQuery] = useState("");
   const [workModeFilter, setWorkModeFilter] = useState<WorkModeFilter>("any");
@@ -491,17 +394,29 @@ export default function JobExplorer() {
   );
 
   const filteredJobs = useMemo(() => {
+    // For Worldwide, filter to only show truly remote jobs first
+    const jobsToFilter = selectedCountry === "WW"
+      ? arrangementJobs.filter(
+          (job) =>
+            job.workMode === "Remote" ||
+            job.location.toLowerCase().includes("worldwide") ||
+            job.location.toLowerCase().includes("anywhere") ||
+            job.location.toLowerCase().includes("remote")
+        )
+      : arrangementJobs;
+
     const base = selectedCountry
-      ? arrangementJobs.filter((job) => jobMatchesCountry(job, selectedCountry))
+      ? jobsToFilter.filter((job) => jobMatchesCountry(job, selectedCountry))
       : selectedRegion !== "World"
-        ? arrangementJobs.filter((job) => jobMatchesRegion(job, selectedRegion))
-        : arrangementJobs;
+        ? jobsToFilter.filter((job) => jobMatchesRegion(job, selectedRegion))
+        : jobsToFilter;
 
     return sortJobsNewestFirst(base);
   }, [arrangementJobs, selectedCountry, selectedRegion]);
 
   const companies = useMemo<CompanyEntry[]>(() => {
-    const companyJobs = displayedJobs.filter((job) => {
+    // Use arrangementJobs which already has work mode filter applied
+    const companyJobs = arrangementJobs.filter((job) => {
       if (selectedCountry && !jobMatchesCountry(job, selectedCountry)) {
         return false;
       }
@@ -512,8 +427,14 @@ export default function JobExplorer() {
       ) {
         return false;
       }
-      if (workModeFilter !== "any" && job.workMode !== workModeFilter) {
-        return false;
+      // For Worldwide, only include truly remote jobs
+      if (selectedCountry === "WW") {
+        const isRemote =
+          job.workMode === "Remote" ||
+          job.location.toLowerCase().includes("worldwide") ||
+          job.location.toLowerCase().includes("anywhere") ||
+          job.location.toLowerCase().includes("remote");
+        if (!isRemote) return false;
       }
       const normalizedQuery = query.trim().toLowerCase();
       return (
@@ -550,7 +471,18 @@ export default function JobExplorer() {
   // Fast O(N) tally map
   const markets = useMemo<JobMarketSummary[]>(() => {
     const countMap = new Map<string, number>();
-    for (const job of arrangementJobs) {
+    // arrangementJobs already has work mode filter applied
+    const jobsToCount = selectedCountry === "WW"
+      ? arrangementJobs.filter(
+          (job) =>
+            job.workMode === "Remote" ||
+            job.location.toLowerCase().includes("worldwide") ||
+            job.location.toLowerCase().includes("anywhere") ||
+            job.location.toLowerCase().includes("remote")
+        )
+      : arrangementJobs;
+
+    for (const job of jobsToCount) {
       const codes = jobCountries(job);
       for (const code of codes) {
         countMap.set(code, (countMap.get(code) ?? 0) + 1);
@@ -574,7 +506,7 @@ export default function JobExplorer() {
         count: worldwideCount,
       },
     ];
-  }, [arrangementJobs]);
+  }, [arrangementJobs, selectedCountry]);
 
   const visibleJobs = filteredJobs.slice(0, visibleLimit);
   const visibleCompanies = companies.slice(0, companyVisibleLimit);
@@ -615,20 +547,18 @@ export default function JobExplorer() {
     // If clicking the currently selected country, toggle it off
     if (selectedCountry === code) {
       setSelectedCountry(null);
-      setMapCenter(DEFAULT_MAP_CENTER);
-      setMapZoom(DEFAULT_MAP_ZOOM);
       return;
     }
 
     // Otherwise select the new country
-    setSelectedRegion("World");
-    setSelectedCountry(code);
+    // Keep the current region if the country is within it, otherwise switch to World
+    const countryInCurrentRegion = selectedRegion !== "World" &&
+      regionCountryCodes[selectedRegion].includes(code);
 
-    const target = allCountryMarkets.find((m) => m.code === code);
-    if (target && target.longitude && target.latitude) {
-      setMapCenter([target.longitude, target.latitude]);
-      setMapZoom((prev) => Math.max(prev, 3));
+    if (!countryInCurrentRegion) {
+      setSelectedRegion("World");
     }
+    setSelectedCountry(code);
   };
 
   function selectRegion(region: RegionName | "World") {
@@ -636,8 +566,6 @@ export default function JobExplorer() {
     setSelectedCountry(null);
     setVisibleLimit(PAGE_SIZE);
     setCompanyVisibleLimit(PAGE_SIZE);
-    setMapCenter(DEFAULT_MAP_CENTER);
-    setMapZoom(DEFAULT_MAP_ZOOM);
   }
 
   async function handleResume(file?: File) {
@@ -736,8 +664,6 @@ export default function JobExplorer() {
     setResumeError("");
     setVisibleLimit(PAGE_SIZE);
     setCompanyVisibleLimit(PAGE_SIZE);
-    setMapCenter(DEFAULT_MAP_CENTER);
-    setMapZoom(DEFAULT_MAP_ZOOM);
     if (resumeInput.current) resumeInput.current.value = "";
   }
 
@@ -847,7 +773,7 @@ export default function JobExplorer() {
                   marginRight: 6,
                 }}
               />
-              Streaming {animatedJobCount + Math.floor(Math.random() * 11)} openings…
+              Streaming {filteredJobs.length + Math.floor(Math.random() * 11)} openings…
             </span>
           )}
           <button
@@ -1226,8 +1152,6 @@ export default function JobExplorer() {
                 type="button"
                 onClick={() => {
                   setSelectedCountry(null);
-                  setMapCenter(DEFAULT_MAP_CENTER);
-                  setMapZoom(DEFAULT_MAP_ZOOM);
                 }}
               >
                 All countries
@@ -1235,161 +1159,14 @@ export default function JobExplorer() {
             )}
           </div>
 
-          <div className="geo-view-switch" role="tablist" aria-label="Map view">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === "globe"}
-              className={view === "globe" ? "is-active" : ""}
-              onClick={() => setView("globe")}
-            >
-              <Globe2 size={15} /> Globe
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === "map"}
-              className={view === "map" ? "is-active" : ""}
-              onClick={() => setView("map")}
-            >
-              <MapIcon size={15} /> Map
-            </button>
-          </div>
-
           <div className="geo-canvas">
-            {view === "globe" ? (
-              <EarthGlobe
-                key={`earth-globe-${selectedRegion}-${selectedCountry ?? ""}-${jobs.length > 0 ? "active" : "empty"}`}
-                markets={visibleMarkets.filter((market) => market.code !== "WW")}
-                selectedCountry={selectedCountry}
-                highlightedCountries={highlightedCountries}
-                onSelectCountry={selectCountry}
-              />
-            ) : (
-              <ComposableMap
-                projection="geoEqualEarth"
-                projectionConfig={{ scale: 155 }}
-                style={{ width: "100%", height: "100%" }}
-              >
-                <ZoomableGroup
-                  center={mapCenter}
-                  zoom={mapZoom}
-                  minZoom={1}
-                  maxZoom={8}
-                  onMoveEnd={({ coordinates, zoom }) => {
-                    if (coordinates && coordinates.length === 2) {
-                      setMapCenter(coordinates as [number, number]);
-                    }
-                    if (zoom) {
-                      setMapZoom(zoom);
-                    }
-                  }}
-                >
-                  <Geographies geography={worldTopology as never}>
-                    {({ geographies }) =>
-                      geographies.map((geography) => {
-                        const properties = geography.properties as {
-                          name?: string;
-                        };
-                        const countryCode = countryCodeForMapName(
-                          properties.name ?? "",
-                          geography.id,
-                        );
-                        const isSelected = Boolean(
-                          countryCode &&
-                          highlightedCountries.includes(countryCode),
-                        );
-                        return (
-                          <Geography
-                            key={geography.rsmKey}
-                            geography={geography}
-                            fill={isSelected ? "#d4e65c" : "#e2e4dc"}
-                            stroke="#fffefa"
-                            strokeWidth={0.55}
-                            style={{
-                              default: {
-                                fill: isSelected ? "#d4e65c" : "#e2e4dc",
-                                outline: "none",
-                                cursor: "pointer",
-                              },
-                              hover: {
-                                fill: isSelected ? "#c5d947" : "#cfd3c7",
-                                outline: "none",
-                                cursor: "pointer",
-                              },
-                              pressed: {
-                                fill: "#b7cb3b",
-                                outline: "none",
-                              },
-                            }}
-                            onClick={() => {
-                              if (countryCode) selectCountry(countryCode);
-                            }}
-                          />
-                        );
-                      })
-                    }
-                  </Geographies>
-                  {visibleMarkets
-                    .filter((market) => {
-                      if (market.code === "WW") return false;
-                      if (market.latitude === 0 && market.longitude === 0) {
-                        return false;
-                      }
-                      return true;
-                    })
-                    .map((market) => (
-                      <Marker
-                        key={`map-pin-${market.code}`}
-                        coordinates={[market.longitude, market.latitude]}
-                        onClick={() => selectCountry(market.code)}
-                      >
-                        <circle
-                          r={6}
-                          fill="#d77946"
-                          stroke="#fffefa"
-                          strokeWidth={1.4}
-                          style={{ cursor: "pointer" }}
-                        />
-                        <text
-                          textAnchor="middle"
-                          y={-10}
-                          style={{
-                            fontFamily: "sans-serif",
-                            fontSize: 10,
-                            fontWeight: 800,
-                            fill: "#203c35",
-                            pointerEvents: "none",
-                            fontVariantNumeric: "tabular-nums",
-                          }}
-                        >
-                          <AnimatedCountDisplay target={market?.count} />
-                        </text>
-                      </Marker>
-                    ))}
-                </ZoomableGroup>
-              </ComposableMap>
-            )}
-            {view === "map" && (
-              <div className="geo-zoom-controls" aria-label="Map zoom controls">
-                <button
-                  type="button"
-                  onClick={() => setMapZoom((zoom) => Math.min(8, zoom + 0.5))}
-                  aria-label="Zoom in"
-                  title="Zoom in"
-                >
-                  <Plus size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMapZoom((zoom) => Math.max(1, zoom - 0.5))}
-                  aria-label="Zoom out"
-                  title="Zoom out"
-                >
-                  <Minus size={16} />
-                </button>
-              </div>
-            )}
+            <EarthGlobe
+              key={`earth-globe-${selectedCountry ?? ""}-${jobs.length > 0 ? "active" : "empty"}`}
+              markets={visibleMarkets.filter((market) => market.code !== "WW")}
+              selectedCountry={selectedCountry}
+              highlightedCountries={highlightedCountries}
+              onSelectCountry={selectCountry}
+            />
           </div>
 
           <div className="country-counts" aria-label="Country job counts">
