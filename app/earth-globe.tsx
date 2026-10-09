@@ -206,7 +206,7 @@ function cameraFacingPosition(
   lon: number,
   root: THREE.Group,
   radius = 5.1,
-  rightBiasDeg = 32,
+  rightBiasDeg = 22,
 ) {
   const local = latLonToVector3(lat, lon, 1);
   const worldDir = local.clone().applyQuaternion(root.quaternion).normalize();
@@ -717,7 +717,7 @@ export default function EarthGlobe({
       market.longitude,
       three.root,
       5.1,
-      20, // increase to 40–45 if still too far left
+      15, // increase to 40–45 if still too far left
     );
     animateCameraTo(three.camera, three.controls, end, 950);
   }, [selectedCountry]);
@@ -757,7 +757,7 @@ export default function EarthGlobe({
       avgLon,
       three.root,
       5.1,
-      20,
+      15,
     );
     animateCameraTo(three.camera, three.controls, end, 950);
   }, [highlightedCountries, selectedCountry]);
